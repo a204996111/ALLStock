@@ -1,0 +1,207 @@
+{% extends "base.html" %}
+
+{% block title %}全台股回測系統{% endblock %}
+
+{% block nav_left %}
+<a href="/" class="text-decoration-none d-flex align-items-center" style="color: var(--text-main);">
+    <span class="h5 mb-0 fw-bold"><i class="bi bi-robot text-danger"></i> 全台股回測系統</span>
+</a>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-3">
+        <div class="card p-4">
+            <h5 class="mb-3 fw-bold text-danger"><i class="bi bi-sliders"></i> 策略參數設定</h5>
+            
+            <form action="/run_batch" method="get" onsubmit="startLoading()">
+                <div class="row g-2 mb-2">
+                    <div class="col-6"><label class="small text-muted">初始資金</label><input type="text" id="init-cash-input" class="form-control form-control-sm" value="{{ '{:,}'.format(summary.initial_capital) }}" disabled></div>
+                    <div class="col-6"><label class="small text-muted">手續費折數</label><input type="number" step="0.1" name="discount" class="form-control form-control-sm" value="{{ conf.discount }}"></div>
+                </div>
+                <label class="fw-bold small text-primary mb-1">進場條件</label>
+                <div class="row g-2 mb-2">
+                    <div class="col-6"><span class="small text-muted">突破天數</span><input type="number" id="inp_n" name="n_breakout" class="form-control form-control-sm" value="{{ conf.n_breakout }}" onchange="updateViz()"></div>
+                    <div class="col-6"><span class="small text-muted">爆量倍數</span><input type="number" step="0.1" id="inp_v" name="vol_mult" class="form-control form-control-sm" value="{{ conf.vol_mult }}" onchange="updateViz()"></div>
+                </div>
+                <div class="row g-2 mb-2">
+                    <div class="col-6"><span class="small text-muted">收盤強度(%)</span><input type="number" step="1" name="close_pct" class="form-control form-control-sm" value="{{ conf.close_pct }}"></div>
+                    <div class="col-6"><span class="small text-muted">成交量(張)</span><input type="number" name="vol_min" class="form-control form-control-sm" value="{{ conf.vol_min }}"></div>
+                </div>
+                <label class="fw-bold small text-danger mb-1 mt-2">出場條件</label>
+                <div class="row g-2 mb-2">
+                    <div class="col-4"><span class="small text-muted">停損%</span><input type="number" step="0.5" name="sl_pct" class="form-control form-control-sm" value="{{ conf.sl_pct }}"></div>
+                    <div class="col-4"><span class="small text-muted">停利%</span><input type="number" step="0.5" name="tp_pct" class="form-control form-control-sm" value="{{ conf.tp_pct }}"></div>
+                    <div class="col-4"><span class="small text-muted">天數</span><input type="number" name="hold_days" class="form-control form-control-sm" value="{{ conf.hold_days }}"></div>
+                </div>
+                <button type="submit" class="btn btn-danger w-100 fw-bold mb-2 shadow-sm"><i class="bi bi-play-circle-fill"></i> 執行回測</button>
+                {% if conf.last_run_time > 0 %}<div class="text-center small text-muted">上次耗時: {{ conf.last_run_time }} 秒</div>{% endif %}
+            </form>
+            <hr>
+            <div class="mb-3">
+                <label class="small text-muted mb-2 fw-bold text-primary">策略邏輯模擬圖</label>
+                <div class="viz-container" id="vizBox"></div>
+                
+                <div class="mt-2 strategy-desc-box">
+                    <strong>📜 策略運作原理：</strong><br>
+                    本策略專注於捕捉強勢突破股。進場條件為：<br>
+                    1. 股價突破近 <span class="text-primary fw-bold">{{ conf.n_breakout }}</span> 日新高<br>
+                    2. 成交量放大至 <span class="text-primary fw-bold">{{ conf.vol_mult }}</span> 倍均量以上<br>
+                    3. 收盤價位於當日振幅 <span class="text-primary fw-bold">{{ conf.close_pct }}</span> (收盤強度) 以上位置<br>
+                    <br>
+                    <strong>🛑 出場機制：</strong><br>
+                    1. 虧損達 <span class="text-danger fw-bold">{{ conf.sl_pct }}%</span> 停損<br>
+                    2. 獲利達 <span class="text-danger fw-bold">{{ conf.tp_pct }}%</span> 停利<br>
+                    3. 持倉滿 <span class="text-danger fw-bold">{{ conf.hold_days }}</span> 天強制出場
+                </div>
+            </div>
+            <div class="row g-2">
+                <div class="col-6"><a href="https://www.stockq.org/" target="_blank" class="icon-link-btn" title="StockQ"><i class="bi bi-globe text-secondary"></i><small>StockQ</small></a></div>
+                <div class="col-6"><a href="https://www.cnyes.com/" target="_blank" class="icon-link-btn" title="鉅亨網"><i class="bi bi-graph-up-arrow text-primary"></i><small>鉅亨網</small></a></div>
+                <div class="col-6"><a href="http://www.gamesmomo.com/a.asp?id=2837" target="_blank" class="icon-link-btn" title="超級瑪莉歐"><i class="bi bi-controller text-success"></i><small>放鬆</small></a></div>
+                <div class="col-6"><a href="https://a204996111.github.io/hannah0238/" target="_blank" class="icon-link-btn" title="好康推薦"><i class="bi bi-gem text-danger"></i><small>好康推薦</small></a></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-9">
+        <div class="text-center mb-3 text-muted">
+            回測區間：{{ summary.date_range_str }}
+        </div>
+
+        <div class="row g-3 mb-3">
+            <div class="col-md-3 col-6"><div class="card p-3 text-center h-100 card-red-val"><div class="metric-title small">總報酬率</div><div class="metric-value">{{ summary.total_return_pct }}%</div></div></div>
+            <div class="col-md-3 col-6"><div class="card p-3 text-center h-100 card-red-val"><div class="metric-title small">總獲利金額</div><div class="metric-value">${{ '{:,}'.format(summary.total_profit) }}</div></div></div>
+            <div class="col-md-3 col-6"><div class="card p-3 text-center h-100 card-blue-val"><div class="metric-title small">全域勝率</div><div class="metric-value">{{ summary.win_rate }}%</div></div></div>
+            <div class="col-md-3 col-6"><div class="card p-3 text-center h-100 card-red-val"><div class="metric-title small">平均報酬</div><div class="metric-value">{{ summary.avg_return }}%</div></div></div>
+            
+            <div class="col-md-3 col-6"><div class="card p-3 text-center h-100 card-purple-val"><div class="metric-title small">盈虧比</div><div class="metric-value">{{ summary.win_loss_ratio }}</div></div></div>
+            <div class="col-md-3 col-6"><div class="card p-3 text-center h-100 card-orange-val"><div class="metric-title small">夏普比率</div><div class="metric-value">{{ summary.sharpe }}</div></div></div>
+            <div class="col-md-3 col-6"><div class="card p-3 text-center h-100"><div class="metric-title small">總交易次數</div><div class="metric-value" style="color:var(--text-main)">{{ summary.total_trades }}</div></div></div>
+            <div class="col-md-3 col-6"><div class="card p-3 text-center h-100 card-green-val"><div class="metric-title small">最大回撤</div><div class="metric-value">{{ summary.max_drawdown }}%</div></div></div>
+        </div>
+
+        <div class="card p-4">
+            <ul class="nav nav-tabs mb-3" id="mainTab" role="tablist">
+                <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#ranking-pane">🏆 交易紀錄排行榜</button></li>
+                <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#curve-pane">💰 策略資金曲線</button></li>
+            </ul>
+            <div class="tab-content">
+                <div class="tab-pane fade show active" id="ranking-pane">
+                    <div class="table-responsive">
+                        <table id="rankingTable" class="table table-hover align-middle w-100 table-striped">
+                            <thead class="table-light">
+                            <tr>
+                                <th>排名</th><th>代號</th><th>名稱</th>
+                                <th>進場日</th><th>買進價</th>
+                                <th>出場日</th><th>賣出價</th>
+                                <th>持倉天數</th>
+                                <th>成本</th>
+                                <th>報酬率</th>
+                                <th>獲利金額($)</th>
+                                <th>餘額</th>
+                                <th>操作</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                                {% for row in rankings %}
+                                <tr class="clickable-row" onclick="window.location.href='/analysis?ticker={{ row.Code }}.TW&focus_entry={{ row.EntryTime }}&focus_exit={{ row.ExitTime }}'">
+                                    <td>{{ loop.index }}</td>
+                                    <td>{{ row.Code }}</td>
+                                    <td>{{ row.Name }}</td>
+
+                                    <td>{{ row.EntryTime }}</td>
+                                    <td>{{ "%.2f"|format(row.EntryPrice) }}</td>
+                                    <td>{{ row.ExitTime }}</td>
+                                    <td>{{ "%.2f"|format(row.ExitPrice) }}</td>
+                                    
+                                    <td data-order="{{ row.Duration }}">{{ row.Duration }} 天</td>
+
+                                    <td class="text-muted">${{ '{:,.0f}'.format(row.Cost) }}</td>
+
+                                    <td class="{{ 'text-up' if row.ReturnPct > 0 else 'text-down' if row.ReturnPct < 0 else '' }}">
+                                        {{ row.ReturnPct }}%
+                                    </td>
+
+                                    <td class="{{ 'text-up' if row.PnL > 0 else 'text-down' if row.PnL < 0 else '' }}">
+                                        ${{ '{:,.0f}'.format(row.PnL) }}
+                                    </td>
+
+                                    <td class="fw-bold">${{ '{:,.0f}'.format(row.Equity) }}</td>
+                                    
+                                    <td><a href="/analysis?ticker={{ row.Code }}.TW&focus_entry={{ row.EntryTime }}&focus_exit={{ row.ExitTime }}" class="btn btn-sm btn-outline-primary rounded-pill px-3">分析</a></td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="tab-pane fade" id="curve-pane"><div id="equityChart" style="width: 100%; height: 500px;"></div></div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    $(document).ready(function() { $('#rankingTable').DataTable({ "order": [[ 5, "desc" ]], "pageLength": 10 }); });
+
+    function startLoading() {
+        document.getElementById('loadingOverlay').style.display = 'flex';
+        let seconds = 0;
+        setInterval(() => { seconds += 0.1; document.getElementById('timer').innerText = '已耗時: ' + seconds.toFixed(1) + ' 秒'; }, 100);
+    }
+
+    function updateViz() {
+        const n = parseInt(document.getElementById('inp_n').value) || 20;
+        const v = parseFloat(document.getElementById('inp_v').value) || 1.2;
+        if(document.getElementById('txt_n')) document.getElementById('txt_n').innerText = n;
+        if(document.getElementById('txt_v')) document.getElementById('txt_v').innerText = v;
+        const box = document.getElementById('vizBox');
+        let htmlContent = '<div class="viz-kline"><div style="position:absolute; top:20px; left:0; width:100%; border-top:2px dashed #3498db; z-index:1;"></div>';
+        let barsHtml = '<div style="display:flex; height:100%; width:100%; align-items:flex-end; padding:0 5px;">';
+        let volHtml = '<div class="viz-vol">';
+        const count = Math.min(n + 5, 25);
+        for(let i=0; i<count; i++) {
+            let isBreakout = (i === count - 2); 
+            let isRed = Math.random() > 0.4; 
+            let kColor = isRed ? 'k-red' : 'k-green';
+            let vColor = isRed ? 'v-red' : 'v-green';
+            let h = 15 + Math.random() * 20;
+            let vH = 20 + Math.random() * 30;
+            if(isBreakout) { h = 50; vH = Math.min(v*40, 90); kColor = 'k-red'; vColor = 'v-red'; }
+            let kPos = isBreakout ? 20 : (10 + Math.random()*10);
+            barsHtml += `<div class="bar-col"><div class="k-body ${kColor}" style="height:${h}px; bottom:${kPos}px;"></div>${isBreakout ? '<div class="circle-highlight" style="bottom:'+(kPos+h/2-12)+'px;"></div>' : ''}</div>`;
+            volHtml += `<div class="bar-col"><div class="vol-body ${vColor}" style="height:${vH}%"></div></div>`;
+        }
+        barsHtml += '</div></div>'; volHtml += '</div>'; box.innerHTML = htmlContent + barsHtml + volHtml;
+    }
+    updateViz();
+
+    var equityChart = null;
+    function initCharts(theme) {
+        if (equityChart != null) equityChart.dispose();
+        var dates = {{ summary.dates | tojson }}; var equity = {{ summary.equity_curve | tojson }};
+        if (dates.length === 0) return;
+        equityChart = echarts.init(document.getElementById('equityChart'), theme);
+        var gridColor = theme === 'dark' ? '#333' : '#e0e0e0'; var axisColor = theme === 'dark' ? '#eee' : '#333';
+        equityChart.setOption({
+            tooltip: { trigger: 'axis' }, grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
+            xAxis: { type: 'category', data: dates, axisLine: { lineStyle: { color: axisColor } } },
+            yAxis: { type: 'value', splitLine: { lineStyle: { type: 'dashed', color: gridColor } } },
+            series: [{ name: '累計獲利', type: 'line', data: equity, smooth: true, lineStyle: { width: 3, color: '#dc3545' }, areaStyle: { opacity: 0.2, color: '#dc3545' }, symbol: 'none' }]
+        });
+    }
+    
+    document.querySelectorAll('button[data-bs-toggle="tab"]').forEach(el => {
+        el.addEventListener('shown.bs.tab', function (event) {
+            if (event.target.getAttribute('data-bs-target') === '#curve-pane') {
+                setTimeout(() => { if(equityChart) equityChart.resize(); }, 100);
+            }
+        });
+    });
+    window.addEventListener('resize', () => { if(equityChart) equityChart.resize(); });
+    initCharts(localStorage.getItem('userTheme') === 'dark' ? 'dark' : undefined);
+</script>
+{% endblock %}

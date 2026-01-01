@@ -1,0 +1,341 @@
+{% extends "base.html" %}
+
+{% block title %}策略比較{% endblock %}
+
+{% block nav_left %}
+<div class="d-flex gap-2">
+    <a href="/" class="btn btn-outline-secondary btn-sm fw-bold"><i class="bi bi-arrow-left"></i> 回首頁</a>
+    
+    <a href="/analysis?ticker={{ ticker }}&start={{ params.start_date }}&end={{ params.end_date }}&n_breakout={{ params.n_breakout }}&vol_mult={{ params.vol_mult }}&close_pct={{ params.close_pct }}&sl={{ params.sl_pct * 100 }}&tp={{ params.tp_pct * 100 }}&hold_days={{ params.hold_days }}&discount={{ params.commission_discount }}" 
+       class="btn btn-outline-primary btn-sm fw-bold">
+       <i class="bi bi-graph-up-arrow"></i> 回個股回測
+    </a>
+</div>
+<span class="h5 mb-0 fw-bold ms-3"><i class="bi bi-bar-chart-steps text-warning"></i> 策略比較</span>
+{% endblock %}
+
+{% block content %}
+<style>
+    .dashboard-card { border: none; border-radius: 12px; box-shadow: 0 2px 12px rgba(0,0,0,0.05); transition: 0.3s; background: var(--bg-card); }
+    .dashboard-card:hover { box-shadow: 0 5px 15px rgba(0,0,0,0.1); }
+    
+    .metric-title { font-size: 0.9rem; color: var(--muted-text); margin-bottom: 8px; font-weight: 600; }
+    .metric-val { font-weight: 800; font-size: 1.5rem; display: block; }
+    .metric-label { font-size: 0.75rem; opacity: 0.7; display: block; margin-bottom: 2px; }
+    
+    .strat-a-color { color: #3498db; } 
+    .strat-b-color { color: #e74c3c; } 
+    
+    .divider-vertical { border-right: 1px solid var(--border-color); }
+    
+    .nav-tabs .nav-link { border: none; color: var(--muted-text); font-weight: 600; padding: 10px 20px; }
+    .nav-tabs .nav-link.active { color: var(--text-main); border-bottom: 3px solid #3498db; background: transparent; }
+    .nav-tabs { border-bottom: 1px solid var(--border-color); }
+    
+    .table th, .table td { text-align: center !important; vertical-align: middle !important; }
+</style>
+
+<div class="row g-4">
+    <div class="col-md-3">
+        <div class="card p-4 dashboard-card h-100">
+            <h6 class="mb-3 fw-bold text-secondary"><i class="bi bi-sliders"></i> 回測參數設定</h6>
+            <form action="/comparison" method="get">
+                <div class="mb-3"><label class="small text-muted">股票代號</label><div class="fw-bold fs-5 mb-1 text-primary">{{ stock_name }} {{ ticker }}</div><input type="text" name="ticker" class="form-control" value="{{ ticker }}"></div>
+                <div class="mb-3"><label class="small text-muted">初始資金</label><input type="number" name="init_cash" class="form-control" value="{{ params.initial_cash }}"></div>
+                <label class="small text-muted">回測期間</label>
+                <div class="d-flex flex-wrap gap-1 mb-2">
+                    <button type="button" class="btn btn-outline-secondary btn-sm flex-fill" onclick="setPeriod(6)">半年</button>
+                    <button type="button" class="btn btn-outline-secondary btn-sm flex-fill" onclick="setPeriod(12)">1年</button>
+                    <button type="button" class="btn btn-outline-secondary btn-sm flex-fill" onclick="setPeriod(36)">3年</button>
+                    <button type="button" class="btn btn-outline-secondary btn-sm flex-fill" onclick="setPeriod(60)">5年</button>
+                    <button type="button" class="btn btn-outline-secondary btn-sm flex-fill" onclick="setPeriod(120)">10年</button>
+                </div>
+                <div class="input-group mb-3"><input type="date" id="start_date" name="start" class="form-control" value="{{ params.start_date }}"><span class="input-group-text bg-transparent border-0">~</span><input type="date" id="end_date" name="end" class="form-control" value="{{ params.end_date }}"></div>
+                <hr class="my-4">
+                <h6 class="fw-bold text-primary mb-2"><i class="bi bi-lightning-fill"></i> 突破策略 (A)</h6>
+                <div class="row g-2 mb-2"><div class="col-6"><span class="small text-muted">突破天數</span><input type="number" name="n_breakout" class="form-control form-control-sm" value="{{ params.n_breakout }}"></div><div class="col-6"><span class="small text-muted">爆量倍數</span><input type="number" step="0.1" name="vol_mult" class="form-control form-control-sm" value="{{ params.vol_mult }}"></div></div>
+                <div class="row g-2 mb-2"><div class="col-4"><span class="small text-muted">A-停損%</span><input type="number" step="0.1" name="sl" class="form-control form-control-sm" value="{{ params.sl_pct * 100 }}"></div><div class="col-4"><span class="small text-muted">A-停利%</span><input type="number" step="0.1" name="tp" class="form-control form-control-sm" value="{{ params.tp_pct * 100 }}"></div><div class="col-4"><span class="small text-muted">天數</span><input type="number" name="hold_days" class="form-control form-control-sm" value="{{ params.hold_days }}"></div></div>
+                <h6 class="fw-bold text-danger mb-2 mt-2"><i class="bi bi-activity"></i> 均線策略 (B)</h6>
+                <div class="row g-2 mb-2"><div class="col-6"><span class="small text-muted">短均線</span><input type="number" name="ma_short" class="form-control form-control-sm" value="{{ ma_short }}"></div><div class="col-6"><span class="small text-muted">長均線</span><input type="number" name="ma_long" class="form-control form-control-sm" value="{{ ma_long }}"></div></div>
+                <div class="row g-2 mb-3"><div class="col-6"><span class="small text-muted">B-停損 %</span><input type="number" step="0.1" name="sl_ma" class="form-control form-control-sm" value="{{ sl_ma }}"></div><div class="col-6"><span class="small text-muted">B-停利 %</span><input type="number" step="0.1" name="tp_ma" class="form-control form-control-sm" value="{{ tp_ma }}"></div></div>
+                <button type="submit" class="btn btn-primary w-100 py-2 fw-bold shadow-sm mt-2"><i class="bi bi-arrow-repeat"></i> 執行比較回測</button>
+                <div class="row g-2 mt-4">
+                    <div class="col-3"><a href="https://www.stockq.org/" target="_blank" class="icon-link-btn" title="StockQ"><i class="bi bi-globe text-secondary"></i><small>StockQ</small></a></div>
+                    <div class="col-3"><a href="https://www.cnyes.com/" target="_blank" class="icon-link-btn" title="鉅亨網"><i class="bi bi-graph-up-arrow text-primary"></i><small>鉅亨網</small></a></div>
+                    <div class="col-3"><a href="http://www.gamesmomo.com/a.asp?id=2837" target="_blank" class="icon-link-btn" title="超級瑪利歐"><i class="bi bi-controller text-success"></i><small>放鬆</small></a></div>
+                    <div class="col-3"><a href="https://a204996111.github.io/hannah0238/" target="_blank" class="icon-link-btn" title="推薦"><i class="bi bi-gem text-danger"></i><small>好康</small></a></div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="col-md-9">
+        <div class="row g-3 mb-4">
+            {% for title, val1, val2, format_money in [('總報酬率', strat1.stats.return, strat2.stats.return, False), ('總獲利金額', strat1.stats.total_profit, strat2.stats.total_profit, True), ('勝率', strat1.stats.win_rate, strat2.stats.win_rate, False), ('最大回撤', strat1.stats.mdd, strat2.stats.mdd, False), ('夏普比率', strat1.stats.sharpe, strat2.stats.sharpe, False), ('總交易次數', strat1.stats.trades, strat2.stats.trades, False)] %}
+            <div class="col-md-4 col-6"><div class="card dashboard-card p-3 text-center h-100"><div class="metric-title">{{ title }}</div><div class="d-flex justify-content-center align-items-center"><div class="w-50 divider-vertical px-2"><span class="metric-label text-primary">突破</span><span class="metric-val strat-a-color">{% if format_money %}${{ '{:,.0f}'.format(val1) }}{% else %}{{ val1 }}{% if title != '總交易次數' and title != '夏普比率' %}%{% endif %}{% endif %}</span></div><div class="w-50 px-2"><span class="metric-label text-danger">均線</span><span class="metric-val strat-b-color">{% if format_money %}${{ '{:,.0f}'.format(val2) }}{% else %}{{ val2 }}{% if title != '總交易次數' and title != '夏普比率' %}%{% endif %}{% endif %}</span></div></div></div></div>
+            {% endfor %}
+        </div>
+
+        <div class="card dashboard-card p-4">
+            <ul class="nav nav-tabs mb-3" id="dashTab" role="tablist">
+                <li class="nav-item"><button class="nav-link active" id="chart-tab-btn" data-bs-toggle="tab" data-bs-target="#chart-pane">📊 技術分析對決</button></li>
+                <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#equity-pane">💰 資金曲線比較</button></li>
+                <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#list-pane-1">📃 突破策略明細</button></li>
+                <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#list-pane-2">📃 均線策略明細</button></li>
+            </ul>
+            <div class="tab-content">
+                <div class="tab-pane fade show active" id="chart-pane" style="height: 600px; position: relative;"><div id="mainChart" style="width: 100%; height: 100%;"></div></div>
+                <div class="tab-pane fade" id="equity-pane" style="height: 600px;"><div id="equityChart" style="width: 100%; height: 100%;"></div></div>
+                
+                <div class="tab-pane fade" id="list-pane-1">
+                    <div class="table-responsive">
+                        <table class="table table-hover table-striped small text-center align-middle w-100" id="table1">
+                            <thead class="table-light"><tr><th>進場日</th><th>進場價</th><th>出場日</th><th>出場價</th><th>持倉天數</th><th>成本</th><th>報酬率</th><th>獲利金額($)</th><th>餘額</th></tr></thead>
+                            <tbody>
+                                {% for t in strat1.trade_list %}
+                                <tr class="clickable-row" onclick="focusOnTrade('{{ t.entry_date }}', '{{ t.exit_date }}')">
+                                    <td>{{t.entry_date}}</td><td>{{t.entry_price}}</td><td>{{t.exit_date}}</td><td>{{t.exit_price}}</td>
+                                    <td data-order="{{ t.duration_days }}">{{t.duration}}</td><td>{{t.cost}}</td>
+                                    <td class="{{'text-danger' if t.return>0 else 'text-success'}}">{{t.return}}%</td>
+                                    <td class="{{'text-danger' if t.pl>0 else 'text-success'}}">${{ '{:,.0f}'.format(t.pl) }}</td>
+                                    <td class="fw-bold">${{ '{:,.0f}'.format(t.equity) }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <div class="tab-pane fade" id="list-pane-2">
+                    <div class="table-responsive">
+                        <table class="table table-hover table-striped small text-center align-middle w-100" id="table2">
+                            <thead class="table-light"><tr><th>進場日</th><th>進場價</th><th>出場日</th><th>出場價</th><th>持倉天數</th><th>成本</th><th>報酬率</th><th>獲利金額($)</th><th>餘額</th></tr></thead>
+                            <tbody>
+                                {% for t in strat2.trade_list %}
+                                <tr class="clickable-row" onclick="focusOnTrade('{{ t.entry_date }}', '{{ t.exit_date }}')">
+                                    <td>{{t.entry_date}}</td><td>{{t.entry_price}}</td><td>{{t.exit_date}}</td><td>{{t.exit_price}}</td>
+                                    <td data-order="{{ t.duration_days }}">{{t.duration}}</td><td>{{t.cost}}</td>
+                                    <td class="{{'text-danger' if t.return>0 else 'text-success'}}">{{t.return}}%</td>
+                                    <td class="{{'text-danger' if t.pl>0 else 'text-success'}}">${{ '{:,.0f}'.format(t.pl) }}</td>
+                                    <td class="fw-bold">${{ '{:,.0f}'.format(t.equity) }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    $(document).ready(function() {
+        $('#table1').DataTable({ "pageLength": 10, "searching": false, "lengthChange": false, "order": [[ 0, "asc" ]] });
+        $('#table2').DataTable({ "pageLength": 10, "searching": false, "lengthChange": false, "order": [[ 0, "asc" ]] });
+    });
+
+    var mainChart = null;
+    var equityChart = null;
+    
+    var dates = {{ strat1.time | tojson }};
+    var openData = {{ strat1.open | tojson }};
+    var closeData = {{ strat1.close | tojson }};
+    var lowData = {{ strat1.low | tojson }};
+    var highData = {{ strat1.high | tojson }};
+    var volData = {{ strat1.vol | tojson }};
+    
+    var ma5 = {{ strat2.ma5 | tojson }};
+    var ma10 = {{ strat2.ma10 | tojson }};
+    var ma20 = {{ strat2.ma20 | tojson }};
+    
+    // ECharts 標準順序: [open, close, lowest, highest] -> index [0,1,2,3] in data array
+    var klineData = dates.map((d, i) => [openData[i], closeData[i], lowData[i], highData[i]]);
+    
+    function getMarkers(markers) {
+        var buyData = markers.filter(t => t.type === 'buy').map(t => [t.date, t.price]);
+        var sellData = markers.filter(t => t.type === 'sell').map(t => [t.date, t.price]);
+        return { buy: buyData, sell: sellData };
+    }
+    var mA = getMarkers({{ strat1.trade_markers | tojson }});
+    var mB = getMarkers({{ strat2.trade_markers | tojson }});
+
+    function initCharts(theme) {
+        if (mainChart) mainChart.dispose();
+        if (equityChart) equityChart.dispose();
+        
+        mainChart = echarts.init(document.getElementById('mainChart'), theme);
+        equityChart = echarts.init(document.getElementById('equityChart'), theme);
+        
+        var gridColor = theme === 'dark' ? '#333' : '#e0e0e0';
+        var axisColor = theme === 'dark' ? '#eee' : '#333';
+        var textColor = theme === 'dark' ? '#ccc' : '#333';
+
+        var optionMain = {
+            // ★★★ 設定上方圖例 (移除 K線) ★★★
+            legend: { 
+                data: ['MA5', 'MA10', 'MA20', '突破買', '突破賣', '均線買', '均線賣'], 
+                top: 5, 
+                textStyle: { color: textColor } 
+            },
+            
+            tooltip: {
+                trigger: 'axis',
+                showContent: true,
+                axisPointer: { type: 'cross', label: { show: true, backgroundColor: '#777' } },
+                backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                borderWidth: 1, borderColor: '#ccc', padding: 10, textStyle: { color: '#333' },
+                formatter: function (params) {
+                    let date = params[0].axisValue;
+                    let res = `<div style="font-weight:bold; margin-bottom:5px; border-bottom:1px solid #eee; padding-bottom:5px;">${date}</div>`;
+                    
+                    params.forEach(item => {
+                        // 1. K線
+                        if (item.seriesName === 'K線' && item.value) {
+                            let open = Number(item.value[1]).toFixed(2);
+                            let close = Number(item.value[2]).toFixed(2);
+                            let low = Number(item.value[3]).toFixed(2);
+                            let high = Number(item.value[4]).toFixed(2);
+                            
+                            let color = Number(item.value[2]) >= Number(item.value[1]) ? '#ef5350' : '#26a69a';
+                            
+                            // 順序: Open -> High -> Low -> Close
+                            res += `<div style="color:${color}; margin-bottom:5px;">
+                                        <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${color};margin-right:5px;"></span>
+                                        <strong>K線</strong><br/>
+                                        &nbsp;&nbsp;Open: ${open}<br/>
+                                        &nbsp;&nbsp;High: ${high}<br/>
+                                        &nbsp;&nbsp;Low:  ${low}<br/>
+                                        &nbsp;&nbsp;Close: ${close}
+                                    </div>`;
+                        }
+                        // 2. MA
+                        else if (item.seriesName.startsWith('MA') && item.value !== undefined) {
+                            res += `<div>
+                                        <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${item.color};margin-right:5px;"></span>
+                                        ${item.seriesName}: <strong>${Number(item.value).toFixed(2)}</strong>
+                                    </div>`;
+                        }
+                        // 3. 成交量
+                        else if (item.seriesName === '成交量' && item.value !== undefined) {
+                            res += `<div style="margin-top:5px; border-top:1px dashed #eee; padding-top:5px;">
+                                        <span style="display:inline-block;width:10px;height:10px;margin-right:5px;">📊</span>
+                                        Vol: <strong>${Number(item.value).toLocaleString()}</strong>
+                                    </div>`;
+                        }
+                    });
+                    return res;
+                }
+            },
+            
+            axisPointer: { link: { xAxisIndex: 'all' }, label: { show: true } },
+
+            grid: [
+                { left: '3%', right: '3%', top: '10%', height: '60%' }, 
+                { left: '3%', right: '3%', top: '75%', height: '15%' }
+            ],
+            
+            xAxis: [
+                { type: 'category', data: dates, scale: true, gridIndex: 0, axisLine: { onZero: false, lineStyle: { color: axisColor } } },
+                { type: 'category', data: dates, gridIndex: 1, show: false }
+            ],
+            
+            yAxis: [
+                { scale: true, gridIndex: 0, splitLine: { show: true, lineStyle: { type: 'dashed', color: gridColor } } },
+                { scale: false, min: 0, gridIndex: 1, splitLine: { show: false }, axisLabel: { show: false } }
+            ],
+            
+            dataZoom: [{ type: 'inside', xAxisIndex: [0, 1] }, { type: 'slider', xAxisIndex: [0, 1], bottom: '2%' }],
+            
+            series: [
+                { name: 'K線', type: 'candlestick', data: klineData, itemStyle: { color: '#ef5350', color0: '#26a69a', borderColor: '#ef5350', borderColor0: '#26a69a' }, markArea: { itemStyle: { color: 'rgba(255, 215, 0, 0.2)' }, data: [] } },
+                
+                { name: 'MA5', type: 'line', data: ma5, smooth: true, showSymbol: false, lineStyle: { width: 1, color: '#f39c12' } },
+                { name: 'MA10', type: 'line', data: ma10, smooth: true, showSymbol: false, lineStyle: { width: 1, color: '#0dcaf0' } },
+                { name: 'MA20', type: 'line', data: ma20, smooth: true, showSymbol: false, lineStyle: { width: 1, color: '#9b59b6' } },
+
+                {
+                    name: '成交量', type: 'bar', xAxisIndex: 1, yAxisIndex: 1, data: volData,
+                    itemStyle: { color: (params) => { return (closeData[params.dataIndex] >= openData[params.dataIndex]) ? '#ef5350' : '#26a69a'; } }
+                },
+                { name: '突破買', type: 'scatter', data: mA.buy, symbol: 'arrow', symbolSize: 12, itemStyle: { color: '#3498db' } },
+                { name: '突破賣', type: 'scatter', data: mA.sell, symbol: 'arrow', symbolRotate: 180, symbolSize: 12, itemStyle: { color: '#2980b9' } },
+                { name: '均線買', type: 'scatter', data: mB.buy, symbol: 'triangle', symbolSize: 12, itemStyle: { color: '#e74c3c' } },
+                { name: '均線賣', type: 'scatter', data: mB.sell, symbol: 'triangle', symbolRotate: 180, symbolSize: 12, itemStyle: { color: '#c0392b' } }
+            ]
+        };
+        
+        mainChart.getZr().on('click', function (params) {
+            if (!params.target) {
+                mainChart.setOption({ series: [{ name: 'K線', markArea: { data: [] } }] });
+            }
+        });
+        
+        mainChart.setOption(optionMain);
+
+        var optionEq = {
+            tooltip: { trigger: 'axis' },
+            legend: { data: ['突破策略', '均線策略'], top: 0, textStyle: { color: theme === 'dark' ? '#ccc' : '#333' } },
+            grid: { left: '3%', right: '4%', bottom: '10%', containLabel: true },
+            xAxis: { type: 'category', data: dates, boundaryGap: false, axisLine: { lineStyle: { color: axisColor } } },
+            yAxis: { type: 'value', scale: true, splitLine: { show: true, lineStyle: { type: 'dashed', color: gridColor } } },
+            series: [
+                { name: '突破策略', type: 'line', data: {{ strat1.stats.equity | tojson }}, smooth: true, showSymbol: false, lineStyle: { width: 3, color: '#3498db' } },
+                { name: '均線策略', type: 'line', data: {{ strat2.equity | tojson }}, smooth: true, showSymbol: false, lineStyle: { width: 3, color: '#e74c3c' } }
+            ]
+        };
+        equityChart.setOption(optionEq);
+    }
+
+    window.addEventListener('resize', () => { if (mainChart) mainChart.resize(); if (equityChart) equityChart.resize(); });
+    
+    document.querySelectorAll('button[data-bs-toggle="tab"]').forEach(el => {
+        el.addEventListener('shown.bs.tab', function (event) {
+            setTimeout(() => { if (mainChart) mainChart.resize(); if (equityChart) equityChart.resize(); }, 100);
+        });
+    });
+
+    function setPeriod(months) {
+        const end = new Date(2025, 11, 24); // 2025-12-24
+        const start = new Date(end);
+        start.setMonth(start.getMonth() - months);
+        
+        const fmt = (d) => {
+            const year = d.getFullYear();
+            const month = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        };
+        
+        document.getElementById('end_date').value = fmt(end);
+        document.getElementById('start_date').value = fmt(start);
+    }
+
+    function focusOnTrade(entryDate, exitDate) {
+        new bootstrap.Tab(document.querySelector('#chart-tab-btn')).show();
+        const entryIdx = dates.indexOf(entryDate);
+        if (entryIdx === -1 || !mainChart) return;
+
+        setTimeout(() => {
+            const startPct = Math.max(0, ((entryIdx - 20) / dates.length) * 100);
+            const exitIdx = dates.indexOf(exitDate);
+            const endPct = Math.min(100, ((exitIdx + 20) / dates.length) * 100);
+
+            mainChart.dispatchAction({ type: 'dataZoom', id: 'dataZoomX', start: startPct, end: endPct });
+            mainChart.setOption({
+                series: [{
+                    name: 'K線',
+                    markArea: { 
+                        itemStyle: { color: 'rgba(255, 215, 0, 0.2)' }, 
+                        data: [[{ xAxis: entryDate }, { xAxis: exitDate }]] 
+                    }
+                }]
+            });
+        }, 100);
+    }
+    
+    initCharts(localStorage.getItem('userTheme') === 'dark' ? 'dark' : undefined);
+</script>
+{% endblock %}
