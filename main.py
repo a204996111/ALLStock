@@ -15,6 +15,7 @@ import sqlite3
 import time
 
 app = FastAPI()
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_FILE = os.path.join(BASE_DIR, 'stocks.db')
 templates = Jinja2Templates(directory=os.path.join(BASE_DIR, "templates"))
 RANKING_FILE = os.path.join(BASE_DIR, 'strategy_ranking.csv')
