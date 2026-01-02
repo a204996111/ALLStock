@@ -6,10 +6,10 @@
 <div class="d-flex gap-2 align-items-center">
     <a href="/" class="btn btn-outline-secondary btn-sm fw-bold"><i class="bi bi-arrow-left"></i> 回首頁</a>
     
-    <a href="/comparison?ticker={{ actual_ticker }}&start={{ start_date }}&end={{ end_date }}&n_breakout={{ n_breakout }}&vol_mult={{ vol_mult }}&close_pct={{ close_pct }}&sl={{ sl }}&tp={{ tp }}&hold_days={{ hold_days }}&discount={{ discount }}" 
-       class="btn btn-outline-warning btn-sm fw-bold text-dark">
+    <button type="submit" form="analysisForm" formaction="/comparison" 
+            class="btn btn-outline-warning btn-sm fw-bold text-dark">
        <i class="bi bi-trophy"></i> 策略比較
-    </a>
+    </button>
     
     <span class="h5 mb-0 fw-bold ms-2"><i class="bi bi-graph-up-arrow text-danger"></i> 個股回測系統</span>
 </div>
@@ -20,7 +20,8 @@
     <div class="col-md-3">
         <div class="card p-4">
             <h6 class="mb-3 fw-bold text-secondary"><i class="bi bi-sliders"></i> 個股參數微調</h6>
-            <form action="/analysis" method="get">
+            
+            <form id="analysisForm" action="/analysis" method="get">
                 <div class="mb-3">
                     <label class="small text-muted">股票代號</label>
                     <div class="fw-bold text-primary mb-1 fs-5">{{ stock_name }} {{ actual_ticker }}</div>
@@ -80,7 +81,6 @@
                 <button type="submit" formaction="/comparison" class="btn btn-warning w-100 fw-bold shadow-sm py-2 mt-2 text-dark">
                     <i class="bi bi-trophy-fill"></i> 進入策略比較 (VS 均線)
                 </button>
-                
                 <div class="mt-3 strategy-desc-box">
                     <strong>📜 策略運作原理：</strong><br>
                     本策略專注於捕捉強勢突破股。進場條件為：<br>
@@ -103,7 +103,6 @@
             </form>
         </div>
     </div>
-
     <div class="col-md-9">
         <div class="row g-3 mb-3">
             {% for label, val, color_logic in [
@@ -126,9 +125,8 @@
             </div>
             {% endfor %}
         </div>
-
         <div class="card p-4">
-            <ul class="nav nav-tabs mb-3" id="mainTab" role="tablist">
+             <ul class="nav nav-tabs mb-3" id="mainTab" role="tablist">
                 <li class="nav-item"><button class="nav-link active" id="chart-tab-btn" data-bs-toggle="tab" data-bs-target="#chart-pane"><i class="bi bi-bar-chart-line-fill"></i> K線技術分析</button></li>
                 <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#list-pane"><i class="bi bi-list-check"></i> 交易明細</button></li>
             </ul>
@@ -251,8 +249,6 @@
             params.forEach(item => {
                 // 1. K線處理
                 if (item.seriesName === 'K線' && item.value) {
-                    // ECharts value 原始順序: [index, open, close, low, high]
-                    // 對應索引: open=1, close=2, low=3, high=4
                     let open = Number(item.value[1]).toFixed(2);
                     let close = Number(item.value[2]).toFixed(2);
                     let low = Number(item.value[3]).toFixed(2);
