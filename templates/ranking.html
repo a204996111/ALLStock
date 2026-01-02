@@ -72,7 +72,7 @@
         <div class="row g-3 mb-3">
             <div class="col-md-3 col-6"><div class="card p-3 text-center h-100 card-red-val"><div class="metric-title small">總報酬率</div><div class="metric-value">{{ summary.total_return_pct }}%</div></div></div>
             <div class="col-md-3 col-6"><div class="card p-3 text-center h-100 card-red-val"><div class="metric-title small">總獲利金額</div><div class="metric-value">${{ '{:,}'.format(summary.total_profit) }}</div></div></div>
-            <div class="col-md-3 col-6"><div class="card p-3 text-center h-100 card-blue-val"><div class="metric-title small">全域勝率</div><div class="metric-value">{{ summary.win_rate }}%</div></div></div>
+            <div class="col-md-3 col-6"><div class="card p-3 text-center h-100 card-blue-val"><div class="metric-title small">勝率</div><div class="metric-value">{{ summary.win_rate }}%</div></div></div>
             <div class="col-md-3 col-6"><div class="card p-3 text-center h-100 card-red-val"><div class="metric-title small">平均報酬</div><div class="metric-value">{{ summary.avg_return }}%</div></div></div>
             
             <div class="col-md-3 col-6"><div class="card p-3 text-center h-100 card-purple-val"><div class="metric-title small">盈虧比</div><div class="metric-value">{{ summary.win_loss_ratio }}</div></div></div>
@@ -204,4 +204,5 @@
     window.addEventListener('resize', () => { if(equityChart) equityChart.resize(); });
     initCharts(localStorage.getItem('userTheme') === 'dark' ? 'dark' : undefined);
 </script>
+
 {% endblock %}
